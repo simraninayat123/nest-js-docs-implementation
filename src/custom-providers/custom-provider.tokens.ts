@@ -1,0 +1,4 @@
+export const APP_CONFIG = 'APP_CONFIG';
+export const DATABASE_CONNECTION = Symbol('DATABASE_CONNECTION');
+export const CATS_REPOSITORY = 'CATS_REPOSITORY';
+export const CATS_ALIAS = 'CATS_ALIAS';
