@@ -1,12 +1,25 @@
-// here associate the token CatsService with the class CatsService from the cats.service.ts file.
-// this is called registration
-// dependency analysis (or "creating the dependency graph") is transitive ->
-// dependency graph ensures that dependencies are resolved in the correct order, essentially "bottom up"
-
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthorsModule } from './authors/authors.module';
+import { BooksModule } from './books/books.module';
 import { CustomProviderModule } from './custom-providers/custom-provider.module';
+import databaseConfig from './database/config/database.config';
+import { TypeOrmConfigService } from './database/typeorm-config.service';
 
 @Module({
-  imports: [CustomProviderModule],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [databaseConfig],
+      envFilePath: ['.env'],
+    }),
+    TypeOrmModule.forRootAsync({
+      useClass: TypeOrmConfigService,
+    }),
+    CustomProviderModule,
+    AuthorsModule,
+    BooksModule,
+  ],
 })
 export class AppModule {}
