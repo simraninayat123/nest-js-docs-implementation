@@ -3,7 +3,8 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
-  ManyToOne,
+  JoinTable,
+  ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -23,10 +24,13 @@ export class BookEntity {
   @Column({ type: 'int', nullable: true })
   publishedYear!: number | null;
 
-  @ManyToOne(() => AuthorEntity, (author) => author.books, {
-    nullable: false,
+  @ManyToMany(() => AuthorEntity, (author) => author.books)
+  @JoinTable({
+    name: 'book_author',
+    joinColumn: { name: 'bookId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'authorId', referencedColumnName: 'id' },
   })
-  author!: AuthorEntity;
+  authors!: AuthorEntity[];
 
   @CreateDateColumn()
   createdAt!: Date;

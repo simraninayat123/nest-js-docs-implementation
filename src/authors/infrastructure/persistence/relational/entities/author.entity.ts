@@ -3,7 +3,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
-  OneToMany,
+  ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -20,7 +20,7 @@ export class AuthorEntity {
   @Column({ type: 'text', nullable: true })
   bio!: string | null;
 
-  @OneToMany(() => BookEntity, (book) => book.author)
+  @ManyToMany(() => BookEntity, (book) => book.authors)
   books!: BookEntity[];
 
   @CreateDateColumn()

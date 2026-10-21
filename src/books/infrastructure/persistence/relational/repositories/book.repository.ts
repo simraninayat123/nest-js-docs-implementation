@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Author } from '../../../../../authors/domain/author';
 import { DeepPartial } from '../../../../../utils/types/deep-partial.type';
 import { NullableType } from '../../../../../utils/types/nullable.type';
@@ -31,7 +31,7 @@ export class BookRelationalRepository implements BookRepository {
     paginationOptions: IPaginationOptions;
   }): Promise<Book[]> {
     const entities = await this.bookRepository.find({
-      relations: { author: true },
+      relations: { authors: true },
       skip: (paginationOptions.page - 1) * paginationOptions.limit,
       take: paginationOptions.limit,
     });
@@ -41,7 +41,7 @@ export class BookRelationalRepository implements BookRepository {
   async findById(id: Book['id']): Promise<NullableType<Book>> {
     const entity = await this.bookRepository.findOne({
       where: { id },
-      relations: { author: true },
+      relations: { authors: true },
     });
     return entity ? BookMapper.toDomain(entity) : null;
   }
@@ -49,15 +49,23 @@ export class BookRelationalRepository implements BookRepository {
   async findByIsbn(isbn: Book['isbn']): Promise<NullableType<Book>> {
     const entity = await this.bookRepository.findOne({
       where: { isbn },
-      relations: { author: true },
+      relations: { authors: true },
     });
     return entity ? BookMapper.toDomain(entity) : null;
   }
 
   async findManyByAuthorId(authorId: Author['id']): Promise<Book[]> {
+    const matches = await this.bookRepository.find({
+      select: { id: true },
+      where: { authors: { id: authorId } },
+    });
+    if (!matches.length) {
+      return [];
+    }
+
     const entities = await this.bookRepository.find({
-      where: { author: { id: authorId } },
-      relations: { author: true },
+      where: { id: In(matches.map((book) => book.id)) },
+      relations: { authors: true },
     });
     return entities.map((entity) => BookMapper.toDomain(entity));
   }
@@ -68,7 +76,7 @@ export class BookRelationalRepository implements BookRepository {
   ): Promise<NullableType<Book>> {
     const entity = await this.bookRepository.findOne({
       where: { id },
-      relations: { author: true },
+      relations: { authors: true },
     });
     if (!entity) {
       return null;
