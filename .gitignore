@@ -34,3 +34,6 @@ Thumbs.db
 *.temp
 *.swp
 *.swo
+
+# Uploaded files
+/files/
