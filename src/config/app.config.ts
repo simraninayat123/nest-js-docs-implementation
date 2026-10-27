@@ -7,6 +7,10 @@ class EnvironmentVariablesValidator {
   @IsUrl({ require_tld: false })
   @IsOptional()
   BACKEND_DOMAIN?: string;
+
+  @IsUrl({ require_tld: false })
+  @IsOptional()
+  FRONTEND_DOMAIN?: string;
 }
 
 export default registerAs<AppConfig>('app', () => {
@@ -14,5 +18,6 @@ export default registerAs<AppConfig>('app', () => {
 
   return {
     backendDomain: process.env.BACKEND_DOMAIN ?? 'http://localhost',
+    frontendDomain: process.env.FRONTEND_DOMAIN ?? 'http://localhost',
   };
 });

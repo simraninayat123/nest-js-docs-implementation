@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
+import authConfig from './auth/config/auth.config';
 import { AuthorsModule } from './authors/authors.module';
 import { BooksModule } from './books/books.module';
 import appConfig from './config/app.config';
@@ -11,12 +13,13 @@ import fileConfig from './files/config/file.config';
 import { FilesModule } from './files/files.module';
 import mailConfig from './mail/config/mail.config';
 import { MailModule } from './mail/mail.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, mailConfig, fileConfig],
+      load: [appConfig, authConfig, databaseConfig, mailConfig, fileConfig],
       envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({
@@ -27,6 +30,8 @@ import { MailModule } from './mail/mail.module';
     BooksModule,
     MailModule,
     FilesModule,
+    UsersModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
