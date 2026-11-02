@@ -15,10 +15,6 @@ class EnvironmentVariablesValidator {
 
   @IsString()
   @IsNotEmpty()
-  AUTH_MAGIC_LINK_SECRET!: string;
-
-  @IsString()
-  @IsNotEmpty()
   AUTH_MAGIC_LINK_TOKEN_EXPIRES_IN!: string;
 }
 
@@ -28,7 +24,6 @@ export default registerAs<AuthConfig>('auth', () => {
   return {
     secret: process.env.AUTH_JWT_SECRET!,
     expires: process.env.AUTH_JWT_TOKEN_EXPIRES_IN! as ms.StringValue,
-    magicLinkSecret: process.env.AUTH_MAGIC_LINK_SECRET!,
     magicLinkExpires: process.env
       .AUTH_MAGIC_LINK_TOKEN_EXPIRES_IN! as ms.StringValue,
   };
