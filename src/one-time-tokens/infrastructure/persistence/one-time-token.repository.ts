@@ -11,6 +11,16 @@ export abstract class OneTimeTokenRepository {
     type: OneTimeToken['type'],
   ): Promise<NullableType<OneTimeToken>>;
 
+  abstract findLatestUnusedByEmail(
+    email: OneTimeToken['email'],
+    type: OneTimeToken['type'],
+  ): Promise<NullableType<OneTimeToken>>;
+
+  abstract incrementAttempts(
+    id: OneTimeToken['id'],
+    maxAttempts: number,
+  ): Promise<boolean>;
+
   abstract markAsUsed(id: OneTimeToken['id']): Promise<boolean>;
 
   abstract deleteUnusedByEmail(

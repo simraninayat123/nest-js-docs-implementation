@@ -48,4 +48,16 @@ export class MailService {
       },
     });
   }
+
+  async otp(mailData: MailData<{ code: string }>): Promise<void> {
+    await this.mailerService.sendMail({
+      to: mailData.to,
+      subject: 'Your sign-in code',
+      text: `Your sign-in code is ${mailData.data.code}`,
+      templatePath: join(this.templatesDir, 'otp.hbs'),
+      context: {
+        code: mailData.data.code,
+      },
+    });
+  }
 }

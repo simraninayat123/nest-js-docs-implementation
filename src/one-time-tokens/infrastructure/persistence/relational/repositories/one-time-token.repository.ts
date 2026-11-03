@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, MoreThan, Repository } from 'typeorm';
+import { IsNull, LessThan, MoreThan, Repository } from 'typeorm';
 import { NullableType } from '../../../../../utils/types/nullable.type';
 import { OneTimeToken } from '../../../../domain/one-time-token';
 import { OneTimeTokenRepository } from '../../one-time-token.repository';
@@ -30,6 +30,33 @@ export class OneTimeTokenRelationalRepository implements OneTimeTokenRepository 
       where: { tokenHash, type },
     });
     return entity ? OneTimeTokenMapper.toDomain(entity) : null;
+  }
+
+  async findLatestUnusedByEmail(
+    email: OneTimeToken['email'],
+    type: OneTimeToken['type'],
+  ): Promise<NullableType<OneTimeToken>> {
+    const entity = await this.oneTimeTokenRepository.findOne({
+      where: { email, type, usedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    return entity ? OneTimeTokenMapper.toDomain(entity) : null;
+  }
+
+  async incrementAttempts(
+    id: OneTimeToken['id'],
+    maxAttempts: number,
+  ): Promise<boolean> {
+    const result = await this.oneTimeTokenRepository.update(
+      {
+        id,
+        usedAt: IsNull(),
+        expiresAt: MoreThan(new Date()),
+        attempts: LessThan(maxAttempts),
+      },
+      { attempts: () => '"attempts" + 1' },
+    );
+    return (result.affected ?? 0) > 0;
   }
 
   async markAsUsed(id: OneTimeToken['id']): Promise<boolean> {

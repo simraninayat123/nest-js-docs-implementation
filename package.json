@@ -5,6 +5,9 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start": "ts-node ./src/main.ts",
+    "start:dev": "ts-node-dev --respawn --transpile-only ./src/main.ts",
+    "start:prod": "node ./dist/main.js",
     "lint": "eslint \"**/*.ts\"",
     "lint:fix": "eslint \"**/*.ts\" --fix",
     "format": "prettier --write \"**/*.ts\"",

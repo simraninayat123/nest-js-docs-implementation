@@ -13,6 +13,8 @@ import { User } from '../users/domain/user';
 import { AuthService } from './auth.service';
 import { AuthMagicLinkConfirmDto } from './dto/auth-magic-link-confirm.dto';
 import { AuthMagicLinkDto } from './dto/auth-magic-link.dto';
+import { AuthOtpConfirmDto } from './dto/auth-otp-confirm.dto';
+import { AuthOtpDto } from './dto/auth-otp.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 
 @Controller({ path: 'auth' })
@@ -31,6 +33,18 @@ export class AuthController {
     @Body() dto: AuthMagicLinkConfirmDto,
   ): Promise<LoginResponseDto> {
     return this.authService.confirmMagicLink(dto.hash);
+  }
+
+  @Post('otp')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  sendOtp(@Body() dto: AuthOtpDto): Promise<void> {
+    return this.authService.sendOtp(dto);
+  }
+
+  @Post('otp/confirm')
+  @HttpCode(HttpStatus.OK)
+  confirmOtp(@Body() dto: AuthOtpConfirmDto): Promise<LoginResponseDto> {
+    return this.authService.confirmOtp(dto);
   }
 
   @Get('me')

@@ -20,6 +20,20 @@ export class OneTimeTokensService {
     return this.oneTimeTokenRepository.findByTokenHash(tokenHash, type);
   }
 
+  findLatestUnusedByEmail(
+    email: OneTimeToken['email'],
+    type: OneTimeToken['type'],
+  ): Promise<NullableType<OneTimeToken>> {
+    return this.oneTimeTokenRepository.findLatestUnusedByEmail(email, type);
+  }
+
+  incrementAttempts(
+    id: OneTimeToken['id'],
+    maxAttempts: number,
+  ): Promise<boolean> {
+    return this.oneTimeTokenRepository.incrementAttempts(id, maxAttempts);
+  }
+
   markAsUsed(id: OneTimeToken['id']): Promise<boolean> {
     return this.oneTimeTokenRepository.markAsUsed(id);
   }
