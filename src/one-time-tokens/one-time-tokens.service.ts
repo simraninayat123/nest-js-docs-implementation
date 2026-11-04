@@ -44,4 +44,8 @@ export class OneTimeTokensService {
   ): Promise<void> {
     return this.oneTimeTokenRepository.deleteUnusedByEmail(email, type);
   }
+
+  deleteExpiredBefore(date: Date): Promise<number> {
+    return this.oneTimeTokenRepository.deleteExpiredBefore(date);
+  }
 }

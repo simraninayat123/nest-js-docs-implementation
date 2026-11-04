@@ -15,7 +15,11 @@ export class FileType {
     ({ value }) => {
       if ((fileConfig() as FileConfig).driver === FileDriver.LOCAL) {
         return (appConfig() as AppConfig).backendDomain + value;
-      } else if ((fileConfig() as FileConfig).driver === FileDriver.S3) {
+      } else if (
+        [FileDriver.S3, FileDriver.S3_PRESIGNED].includes(
+          (fileConfig() as FileConfig).driver,
+        )
+      ) {
         const endpoint = (fileConfig() as FileConfig).awsS3Endpoint;
 
         const s3 = new S3Client({

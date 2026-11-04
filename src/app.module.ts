@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module';
     TypeOrmModule.forRootAsync({
       useClass: TypeOrmConfigService,
     }),
+    ScheduleModule.forRoot(),
     CustomProviderModule,
     AuthorsModule,
     BooksModule,

@@ -23,6 +23,7 @@ export class OneTimeTokenEntity {
   @Column({ type: 'varchar', length: 64 })
   tokenHash!: string;
 
+  @Index()
   @Column({ type: 'timestamp' })
   expiresAt!: Date;
 

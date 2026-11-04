@@ -78,4 +78,11 @@ export class OneTimeTokenRelationalRepository implements OneTimeTokenRepository 
       usedAt: IsNull(),
     });
   }
+
+  async deleteExpiredBefore(date: Date): Promise<number> {
+    const result = await this.oneTimeTokenRepository.delete({
+      expiresAt: LessThan(date),
+    });
+    return result.affected ?? 0;
+  }
 }

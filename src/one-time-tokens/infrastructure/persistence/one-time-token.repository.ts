@@ -27,4 +27,6 @@ export abstract class OneTimeTokenRepository {
     email: OneTimeToken['email'],
     type: OneTimeToken['type'],
   ): Promise<void>;
+
+  abstract deleteExpiredBefore(date: Date): Promise<number>;
 }

@@ -5,10 +5,12 @@ import { FilesService } from './files.service';
 import { RelationalFilePersistenceModule } from './infrastructure/persistence/relational/relational-persistence.module';
 import { FilesLocalModule } from './infrastructure/uploader/local/files.module';
 import { FilesS3Module } from './infrastructure/uploader/s3/files.module';
+import { FilesS3PresignedModule } from './infrastructure/uploader/s3-presigned/files.module';
 
 const infrastructureUploaderModule = {
   [FileDriver.LOCAL]: FilesLocalModule,
   [FileDriver.S3]: FilesS3Module,
+  [FileDriver.S3_PRESIGNED]: FilesS3PresignedModule,
 }[(fileConfig() as FileConfig).driver];
 
 @Module({

@@ -7,4 +7,5 @@ export type AuthConfig = {
   otpSecret: string;
   otpExpires: ms.StringValue;
   otpMaxAttempts: number;
+  oneTimeTokenRetention: ms.StringValue;
 };

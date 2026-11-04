@@ -28,6 +28,10 @@ class EnvironmentVariablesValidator {
   @IsInt()
   @Min(1)
   AUTH_OTP_MAX_ATTEMPTS!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  AUTH_ONE_TIME_TOKEN_RETENTION!: string;
 }
 
 export default registerAs<AuthConfig>('auth', () => {
@@ -41,5 +45,7 @@ export default registerAs<AuthConfig>('auth', () => {
     otpSecret: process.env.AUTH_OTP_SECRET!,
     otpExpires: process.env.AUTH_OTP_TOKEN_EXPIRES_IN! as ms.StringValue,
     otpMaxAttempts: parseInt(process.env.AUTH_OTP_MAX_ATTEMPTS!, 10),
+    oneTimeTokenRetention: process.env
+      .AUTH_ONE_TIME_TOKEN_RETENTION! as ms.StringValue,
   };
 });
