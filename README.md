@@ -93,6 +93,18 @@ module: keep all required variables present, and only the behaviour changes per 
 | `AUTH_JWT_TOKEN_EXPIRES_IN` | yes | — | `ms` string, e.g. `15m` |
 | `AUTH_MAGIC_LINK_TOKEN_EXPIRES_IN` | yes | — | `ms` string; lifetime of the one-time token |
 
+### `google`, `facebook`, `microsoft` — social sign-in
+
+All optional, so the app boots without them. A provider's login endpoint returns `500` until
+its variables are set.
+
+| Variable | Config file | Used by |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID` | [src/auth-google/config/google.config.ts](src/auth-google/config/google.config.ts) | expected `aud` of Google ID tokens |
+| `FACEBOOK_APP_ID` | [src/auth-facebook/config/facebook.config.ts](src/auth-facebook/config/facebook.config.ts) | checked against `app_id` from `debug_token` |
+| `FACEBOOK_APP_SECRET` | [src/auth-facebook/config/facebook.config.ts](src/auth-facebook/config/facebook.config.ts) | app access token for `debug_token` |
+| `MICROSOFT_CLIENT_ID` | [src/auth-microsoft/config/microsoft.config.ts](src/auth-microsoft/config/microsoft.config.ts) | expected `aud` of Microsoft ID tokens |
+
 ### `mail` — [src/mail/config/mail.config.ts](src/mail/config/mail.config.ts)
 
 | Variable | Required | Default | Used by |
@@ -134,8 +146,8 @@ Defined in [docker-compose.yaml](docker-compose.yaml). Start all of them with
 
 | Service | Image | Ports | Needed by |
 | --- | --- | --- | --- |
-| `postgres` | `postgres:17-alpine` | `${DATABASE_PORT}:5432` | `authors`, `books`, `files`, `users`, `one-time-tokens`, `auth` |
-| `maildev` | `maildev/maildev` | `1080:1080` (web UI), `${MAIL_PORT}:1025` (SMTP) | `mail`, `auth` |
+| `postgres` | `postgres:17-alpine` | `${DATABASE_PORT}:5432` | `authors`, `books`, `files`, `users`, `one-time-tokens`, `social-accounts`, `auth`, `auth-google`, `auth-facebook`, `auth-microsoft`, `reminders` |
+| `maildev` | `maildev/maildev` | `1080:1080` (web UI), `${MAIL_PORT}:1025` (SMTP) | `mail`, `auth`, `reminders` |
 | `localstack` | `localstack/localstack` | `4566:4566` | `files` only when `FILE_DRIVER=s3` |
 
 Notes:
@@ -268,7 +280,8 @@ docker compose exec localstack awslocal s3 ls "s3://$AWS_DEFAULT_S3_BUCKET"
 ### `users` — [src/users/](src/users/)
 
 The user aggregate: domain model, entity, abstract repository and relational implementation.
-Supports soft deletion via `deletedAt`, and `findByEmail` takes a `withDeleted` option.
+Supports soft deletion via `deletedAt`, and `findById` and `findByEmail` take a `withDeleted`
+option.
 
 | | |
 | --- | --- |
@@ -417,6 +430,126 @@ changes with the driver:
 For real AWS instead of LocalStack, drop `AWS_S3_ENDPOINT` (which also turns off forced
 path-style addressing) and supply real credentials.
 
+### `social-accounts` — [src/social-accounts/](src/social-accounts/)
+
+Links a user to their accounts at external identity providers, one row per
+`(provider, providerUserId)` pair in the `user_social_account` table. The pair is unique, and a
+user can have several rows, so one account can sign in with Google, Facebook and Microsoft as
+well as by email. Rows are removed when their user is hard-deleted.
+
+| | |
+| --- | --- |
+| Module dependencies | `RelationalSocialAccountPersistenceModule` |
+| Infrastructure | `postgres` |
+| Migrations | `CreateUser`, `CreateUserSocialAccount` |
+| Required env | the `database` namespace |
+
+No controller. It is imported by `AuthModule`.
+
+```bash
+docker compose exec postgres psql -U "$DATABASE_USERNAME" -d "$DATABASE_NAME" \
+  -c 'select "userId", provider, "providerUserId" from user_social_account;'
+```
+
+### `auth-google`, `auth-facebook`, `auth-microsoft` — social sign-in
+
+Token-based, as in brocoders: the client signs in with the provider's own SDK and posts the
+result. Each module verifies the token with its provider, maps the profile to
+`SocialInterface`, and hands it to `AuthService.validateSocialLogin`, which returns the same
+`LoginResponseDto` as the magic-link flow.
+
+| Endpoint | Body | Verification |
+| --- | --- | --- |
+| `POST /auth/google/login` | `{"idToken": "..."}` | `google-auth-library` `verifyIdToken`, audience `GOOGLE_CLIENT_ID` |
+| `POST /auth/facebook/login` | `{"accessToken": "..."}` | Graph `debug_token` (valid, issued to `FACEBOOK_APP_ID`), then `/me` for id, email and name |
+| `POST /auth/microsoft/login` | `{"idToken": "..."}` | RS256 signature against the `common` JWKS, audience `MICROSOFT_CLIENT_ID`, and `iss` equal to `https://login.microsoftonline.com/{tid}/v2.0` |
+
+`validateSocialLogin`:
+
+1. A known `(provider, providerUserId)` signs in its linked user.
+2. Otherwise the provider must return an email (`422 emailRequired`) that it vouches for
+   (`422 emailNotVerified`).
+3. A user with that email is linked and signed in; if there is none, one is created with the
+   provider's name and `provider` set to the provider.
+4. Soft-deleted users get `422 userDeleted`, as in the magic-link flow.
+
+What counts as a verified email:
+
+| Provider | Verified when |
+| --- | --- |
+| Google | `email_verified` is `true` |
+| Facebook | an email is returned at all; Facebook only returns confirmed addresses |
+| Microsoft | `xms_edov` is true; the `email` claim alone is not trusted, since a tenant admin can set it to any address |
+
+Provider setup:
+
+- **Google** — create an OAuth client ID in the Google Cloud console; its id is
+  `GOOGLE_CLIENT_ID`. The client must request the `email` and `profile` scopes.
+- **Facebook** — create an app with Facebook Login; set `FACEBOOK_APP_ID` and
+  `FACEBOOK_APP_SECRET`. The client must request the `email` permission.
+- **Microsoft** — register an app in Microsoft Entra with supported account types "any
+  organizational directory and personal Microsoft accounts"; its application (client) id is
+  `MICROSOFT_CLIENT_ID`. Under *Token configuration*, add the `email` and `xms_edov` optional
+  claims to the ID token, and request the `openid`, `email` and `profile` scopes.
+
+Try it once you have a token from the provider's SDK or playground:
+
+```bash
+curl -X POST http://localhost:3000/auth/google/login \
+  -H 'Content-Type: application/json' \
+  -d '{"idToken":"<google-id-token>"}'
+# => {"token":"...","tokenExpires":...,"user":{...}}
+```
+
+### `reminders` — [src/reminders/](src/reminders/)
+
+Reminder emails on a schedule the user picks, built on the dynamic API of `@nestjs/schedule`
+(`SchedulerRegistry` plus `CronJob` from the `cron` package). Each reminder is a row in the
+`reminder` table and a cron job named `reminder-<id>` in the registry. On every tick the job
+loads the reminder and its owner, and mails the message to the owner's address with the
+[reminder.hbs](src/mail/mail-templates/reminder.hbs) template.
+
+| | |
+| --- | --- |
+| Module dependencies | `RelationalReminderPersistenceModule`, `mail`, `users`, `ScheduleModule` (root) |
+| Infrastructure | `postgres`, `maildev` |
+| Migrations | `CreateUser`, `CreateReminder` |
+| Required env | the `database`, `auth` and `mail` namespaces |
+
+All routes need a JWT, and users only see their own reminders.
+
+| Endpoint | Body | Result |
+| --- | --- | --- |
+| `POST /reminders` | `{"cronTime": "0 9 * * 1-5", "message": "...", "timeZone": "Asia/Kolkata"}` | `201`, the reminder with `nextRunAt` |
+| `GET /reminders` | — | the caller's reminders |
+| `GET /reminders/:id` | — | one reminder, `404` if it is not the caller's |
+| `DELETE /reminders/:id` | — | `204`; the cron job is removed from the registry |
+
+- `cronTime` takes 5 fields, or 6 with seconds first. `timeZone` is an IANA name and is
+  optional; without it the server's zone is used.
+- A reminder may fire at most once a minute (`422 tooFrequent`), and a user may have at most
+  10 (`422 tooManyReminders`). Both limits are constants in
+  [reminders.service.ts](src/reminders/reminders.service.ts).
+- An unparsable pattern or unknown time zone gets `422 invalidCronTime`.
+- Jobs live in memory, so `onApplicationBootstrap` reschedules every stored reminder at startup.
+  Every instance of the app schedules every reminder: run a single instance, or each extra
+  instance sends its own copy of each email.
+- A tick whose reminder or user no longer exists removes its own job.
+
+Try it:
+
+```bash
+docker compose up -d postgres maildev
+npm run migration:run
+npm run start:dev
+
+curl -X POST http://localhost:3000/reminders \
+  -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \
+  -d '{"cronTime":"* * * * *","message":"Drink water"}'
+```
+
+Within a minute a "Your reminder" mail shows up at <http://localhost:1080>.
+
 ## Troubleshooting
 
 Each config namespace throws on load, so the error message names the failing variable. Common
@@ -435,3 +568,7 @@ cases:
 | `413` / file-size rejection | uploads are capped at 5 MiB in `file.config.ts` |
 | `422 invalidHash` on confirm | the hash is already used, expired, or superseded by a newer link |
 | `401` on `GET /auth/me` | the token is missing, expired, or its user no longer exists |
+| `500` on `POST /auth/<provider>/login` | that provider's variables are not set in `.env` |
+| `422 invalidToken` on social login | the token is expired, malformed, or issued to another client id or app |
+| `422 tooFrequent` on `POST /reminders` | the pattern fires more than once a minute, e.g. a 6-field pattern with `*` seconds |
+| `422 emailNotVerified` on Microsoft login | the `xms_edov` optional claim is not configured in the app registration, or the account's email domain is not verified |

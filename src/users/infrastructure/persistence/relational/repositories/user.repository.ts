@@ -22,8 +22,14 @@ export class UserRelationalRepository implements UserRepository {
     return UserMapper.toDomain(newEntity);
   }
 
-  async findById(id: User['id']): Promise<NullableType<User>> {
-    const entity = await this.userRepository.findOne({ where: { id } });
+  async findById(
+    id: User['id'],
+    options?: { withDeleted?: boolean },
+  ): Promise<NullableType<User>> {
+    const entity = await this.userRepository.findOne({
+      where: { id },
+      withDeleted: options?.withDeleted ?? false,
+    });
     return entity ? UserMapper.toDomain(entity) : null;
   }
 

@@ -17,6 +17,8 @@ import { AllConfigType } from '../config/config.type';
 import { MailService } from '../mail/mail.service';
 import { OneTimeTokenTypeEnum } from '../one-time-tokens/one-time-token-type.enum';
 import { OneTimeTokensService } from '../one-time-tokens/one-time-tokens.service';
+import { SocialAccountsService } from '../social-accounts/social-accounts.service';
+import { SocialInterface } from '../social/interfaces/social.interface';
 import { User } from '../users/domain/user';
 import { UsersService } from '../users/users.service';
 import { AuthProvidersEnum } from './auth-providers.enum';
@@ -31,6 +33,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
     private readonly oneTimeTokensService: OneTimeTokensService,
+    private readonly socialAccountsService: SocialAccountsService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService<AllConfigType>,
   ) {}
@@ -159,6 +162,98 @@ export class AuthService {
     return this.login(await this.findOrCreateUser(oneTimeToken.email));
   }
 
+  async validateSocialLogin(
+    provider: AuthProvidersEnum,
+    socialData: SocialInterface,
+  ): Promise<LoginResponseDto> {
+    const socialAccount = await this.socialAccountsService.findByProviderUserId(
+      provider,
+      socialData.id,
+    );
+
+    if (socialAccount) {
+      return this.login(await this.findLinkedUser(socialAccount.userId));
+    }
+
+    const email = socialData.email?.toLowerCase();
+
+    if (!email) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'emailRequired',
+        },
+      });
+    }
+
+    if (!socialData.emailVerified) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'emailNotVerified',
+        },
+      });
+    }
+
+    const user = await this.findOrCreateUser(email, {
+      provider,
+      firstName: socialData.firstName ?? null,
+      lastName: socialData.lastName ?? null,
+    });
+
+    await this.linkSocialAccount(user, provider, socialData.id);
+
+    return this.login(user);
+  }
+
+  private async findLinkedUser(userId: User['id']): Promise<User> {
+    const user = await this.usersService.findById(userId, {
+      withDeleted: true,
+    });
+
+    if (!user) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          user: 'userNotFound',
+        },
+      });
+    }
+
+    if (user.deletedAt) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'userDeleted',
+        },
+      });
+    }
+
+    return user;
+  }
+
+  private async linkSocialAccount(
+    user: User,
+    provider: AuthProvidersEnum,
+    providerUserId: string,
+  ): Promise<void> {
+    try {
+      await this.socialAccountsService.create({
+        userId: user.id,
+        provider,
+        providerUserId,
+      });
+    } catch (error) {
+      const existing = await this.socialAccountsService.findByProviderUserId(
+        provider,
+        providerUserId,
+      );
+      if (existing?.userId !== user.id) {
+        throw error;
+      }
+    }
+  }
+
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
@@ -187,7 +282,14 @@ export class AuthService {
     return !!user?.deletedAt;
   }
 
-  private async findOrCreateUser(email: User['email']): Promise<User> {
+  private async findOrCreateUser(
+    email: User['email'],
+    profile: Pick<User, 'provider' | 'firstName' | 'lastName'> = {
+      provider: AuthProvidersEnum.email,
+      firstName: null,
+      lastName: null,
+    },
+  ): Promise<User> {
     const user = await this.usersService.findByEmail(email, {
       withDeleted: true,
     });
@@ -201,17 +303,15 @@ export class AuthService {
       });
     }
 
-    return user ?? this.createUser(email);
+    return user ?? this.createUser(email, profile);
   }
 
-  private async createUser(email: User['email']): Promise<User> {
+  private async createUser(
+    email: User['email'],
+    profile: Pick<User, 'provider' | 'firstName' | 'lastName'>,
+  ): Promise<User> {
     try {
-      return await this.usersService.create({
-        email,
-        firstName: null,
-        lastName: null,
-        provider: AuthProvidersEnum.email,
-      });
+      return await this.usersService.create({ email, ...profile });
     } catch (error) {
       const existingUser = await this.usersService.findByEmail(email);
       if (!existingUser) {

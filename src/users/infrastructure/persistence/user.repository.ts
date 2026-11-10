@@ -6,7 +6,10 @@ export abstract class UserRepository {
     data: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt'>,
   ): Promise<User>;
 
-  abstract findById(id: User['id']): Promise<NullableType<User>>;
+  abstract findById(
+    id: User['id'],
+    options?: { withDeleted?: boolean },
+  ): Promise<NullableType<User>>;
 
   abstract findByEmail(
     email: User['email'],

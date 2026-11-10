@@ -13,8 +13,11 @@ export class UsersService {
     return this.userRepository.create(data);
   }
 
-  findById(id: User['id']): Promise<NullableType<User>> {
-    return this.userRepository.findById(id);
+  findById(
+    id: User['id'],
+    options?: { withDeleted?: boolean },
+  ): Promise<NullableType<User>> {
+    return this.userRepository.findById(id, options);
   }
 
   findByEmail(

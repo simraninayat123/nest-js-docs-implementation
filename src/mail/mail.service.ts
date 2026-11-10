@@ -60,4 +60,16 @@ export class MailService {
       },
     });
   }
+
+  async reminder(mailData: MailData<{ message: string }>): Promise<void> {
+    await this.mailerService.sendMail({
+      to: mailData.to,
+      subject: 'Your reminder',
+      text: mailData.data.message,
+      templatePath: join(this.templatesDir, 'reminder.hbs'),
+      context: {
+        message: mailData.data.message,
+      },
+    });
+  }
 }
