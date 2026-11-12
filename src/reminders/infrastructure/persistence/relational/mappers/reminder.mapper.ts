@@ -9,6 +9,7 @@ export class ReminderMapper {
     domainEntity.message = raw.message;
     domainEntity.cronTime = raw.cronTime;
     domainEntity.timeZone = raw.timeZone;
+    domainEntity.language = raw.language;
     domainEntity.createdAt = raw.createdAt;
     return domainEntity;
   }
@@ -22,6 +23,7 @@ export class ReminderMapper {
     persistenceEntity.message = domainEntity.message;
     persistenceEntity.cronTime = domainEntity.cronTime;
     persistenceEntity.timeZone = domainEntity.timeZone;
+    persistenceEntity.language = domainEntity.language;
     persistenceEntity.createdAt = domainEntity.createdAt;
     return persistenceEntity;
   }

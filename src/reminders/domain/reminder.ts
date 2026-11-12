@@ -4,5 +4,6 @@ export class Reminder {
   message!: string;
   cronTime!: string;
   timeZone!: string | null;
+  language!: string | null;
   createdAt!: Date;
 }

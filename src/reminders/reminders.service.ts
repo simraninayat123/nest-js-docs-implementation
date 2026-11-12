@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob, CronTime } from 'cron';
+import { I18nService } from 'nestjs-i18n';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/domain/user';
 import { UsersService } from '../users/users.service';
@@ -28,6 +29,7 @@ export class RemindersService implements OnApplicationBootstrap {
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly mailService: MailService,
     private readonly usersService: UsersService,
+    private readonly i18n: I18nService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -45,6 +47,7 @@ export class RemindersService implements OnApplicationBootstrap {
   async create(
     user: User,
     dto: CreateReminderDto,
+    language: string,
   ): Promise<ReminderResponseDto> {
     this.validateCronTime(dto.cronTime, dto.timeZone);
 
@@ -65,6 +68,9 @@ export class RemindersService implements OnApplicationBootstrap {
       message: dto.message,
       cronTime: dto.cronTime,
       timeZone: dto.timeZone ?? null,
+      language: this.i18n.getSupportedLanguages().includes(language)
+        ? language
+        : null,
     });
 
     this.schedule(reminder);
@@ -165,6 +171,7 @@ export class RemindersService implements OnApplicationBootstrap {
       await this.mailService.reminder({
         to: user.email,
         data: { message: reminder.message },
+        lang: reminder.language ?? undefined,
       });
       this.logger.log(`Sent reminder ${id}`);
     } catch (error) {
@@ -196,6 +203,7 @@ export class RemindersService implements OnApplicationBootstrap {
       message: reminder.message,
       cronTime: reminder.cronTime,
       timeZone: reminder.timeZone,
+      language: reminder.language,
       nextRunAt,
       createdAt: reminder.createdAt,
     };

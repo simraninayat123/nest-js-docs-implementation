@@ -4,6 +4,24 @@ import {
   ValidationError,
   ValidationPipeOptions,
 } from '@nestjs/common';
+import { i18nValidationErrorFactory } from 'nestjs-i18n';
+
+const VALIDATION_NAMESPACE = 'validation';
+
+function withTranslationKeys(errors: ValidationError[]): ValidationError[] {
+  return errors.map((error) => ({
+    ...error,
+    children: withTranslationKeys(error.children ?? []),
+    constraints: Object.fromEntries(
+      Object.entries(error.constraints ?? {}).map(([name, message]) => [
+        name,
+        message.startsWith(`${VALIDATION_NAMESPACE}.`)
+          ? message
+          : `${VALIDATION_NAMESPACE}.${name}`,
+      ]),
+    ),
+  }));
+}
 
 function generateErrors(errors: ValidationError[]): Record<string, unknown> {
   return errors.reduce(
@@ -26,7 +44,9 @@ const validationOptions: ValidationPipeOptions = {
   exceptionFactory: (errors: ValidationError[]) =>
     new UnprocessableEntityException({
       status: HttpStatus.UNPROCESSABLE_ENTITY,
-      errors: generateErrors(errors),
+      errors: generateErrors(
+        i18nValidationErrorFactory(withTranslationKeys(errors)).errors,
+      ),
     }),
 };
 

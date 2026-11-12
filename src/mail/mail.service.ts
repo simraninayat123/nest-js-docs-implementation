@@ -1,9 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { I18nContext, I18nService } from 'nestjs-i18n';
 import { join } from 'node:path';
 import { AllConfigType } from '../config/config.type';
 import { MailerService } from '../mailer/mailer.service';
 import { MailData } from './interfaces/mail-data.interface';
+
+type MailTemplate = 'welcome' | 'magic-link' | 'otp' | 'reminder';
+
+type MailStrings = Record<string, string> & {
+  subject: string;
+  text: string;
+};
 
 @Injectable()
 export class MailService {
@@ -17,59 +25,49 @@ export class MailService {
   constructor(
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService<AllConfigType>,
+    private readonly i18n: I18nService,
   ) {}
 
-  async welcome(mailData: MailData<{ name: string }>): Promise<void> {
-    await this.mailerService.sendMail({
-      to: mailData.to,
-      subject: 'Welcome to the library!',
-      text: `Hello ${mailData.data.name}, welcome to the library!`,
-      templatePath: join(this.templatesDir, 'welcome.hbs'),
-      context: {
-        name: mailData.data.name,
-      },
-    });
+  welcome(mailData: MailData<{ name: string }>): Promise<void> {
+    return this.send('welcome', mailData);
   }
 
-  async magicLink(mailData: MailData<{ hash: string }>): Promise<void> {
+  magicLink(mailData: MailData<{ hash: string }>): Promise<void> {
     const url = new URL(
       this.configService.getOrThrow('app.frontendDomain', { infer: true }) +
         '/magic-link',
     );
     url.searchParams.set('hash', mailData.data.hash);
 
-    await this.mailerService.sendMail({
-      to: mailData.to,
-      subject: 'Your sign-in link',
-      text: `Sign in to the library: ${url.toString()}`,
-      templatePath: join(this.templatesDir, 'magic-link.hbs'),
-      context: {
-        url: url.toString(),
-      },
+    return this.send('magic-link', {
+      ...mailData,
+      data: { url: url.toString() },
     });
   }
 
-  async otp(mailData: MailData<{ code: string }>): Promise<void> {
-    await this.mailerService.sendMail({
-      to: mailData.to,
-      subject: 'Your sign-in code',
-      text: `Your sign-in code is ${mailData.data.code}`,
-      templatePath: join(this.templatesDir, 'otp.hbs'),
-      context: {
-        code: mailData.data.code,
-      },
-    });
+  otp(mailData: MailData<{ code: string }>): Promise<void> {
+    return this.send('otp', mailData);
   }
 
-  async reminder(mailData: MailData<{ message: string }>): Promise<void> {
+  reminder(mailData: MailData<{ message: string }>): Promise<void> {
+    return this.send('reminder', mailData);
+  }
+
+  private async send(
+    template: MailTemplate,
+    { to, data, lang }: MailData<Record<string, string>>,
+  ): Promise<void> {
+    const strings = this.i18n.t<string, MailStrings>(`mail.${template}`, {
+      lang: lang ?? I18nContext.current()?.lang,
+      args: data,
+    });
+
     await this.mailerService.sendMail({
-      to: mailData.to,
-      subject: 'Your reminder',
-      text: mailData.data.message,
-      templatePath: join(this.templatesDir, 'reminder.hbs'),
-      context: {
-        message: mailData.data.message,
-      },
+      to,
+      subject: strings.subject,
+      text: strings.text,
+      templatePath: join(this.templatesDir, `${template}.hbs`),
+      context: { ...data, ...strings },
     });
   }
 }

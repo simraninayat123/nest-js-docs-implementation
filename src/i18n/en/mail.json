@@ -1,0 +1,29 @@
+{
+  "ignore": "If you didn't request this, you can ignore this email.",
+  "welcome": {
+    "subject": "Welcome to the library!",
+    "title": "Hello {name},",
+    "text": "Hello {name}, welcome to the library!"
+  },
+  "magic-link": {
+    "subject": "Your sign-in link",
+    "title": "Sign in to the library",
+    "body": "Click the button below to sign in. This link expires soon.",
+    "action": "Sign in",
+    "fallback": "If the button doesn't work, copy this link into your browser:",
+    "ignore": "$t(mail.ignore)",
+    "text": "Sign in to the library: {url}"
+  },
+  "otp": {
+    "subject": "Your sign-in code",
+    "body": "Enter this code to sign in to the library. It expires soon.",
+    "ignore": "$t(mail.ignore)",
+    "text": "Your sign-in code is {code}"
+  },
+  "reminder": {
+    "subject": "Your reminder",
+    "title": "Reminder",
+    "footer": "You are receiving this because you scheduled a reminder in the library.",
+    "text": "{message}"
+  }
+}

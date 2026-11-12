@@ -3,6 +3,7 @@ export class ReminderResponseDto {
   message!: string;
   cronTime!: string;
   timeZone!: string | null;
+  language!: string | null;
   nextRunAt!: Date | null;
   createdAt!: Date;
 }

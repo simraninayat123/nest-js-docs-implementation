@@ -17,6 +17,8 @@ runnable requests, so you can bring up one module at a time instead of the whole
 - [Running each module separately](#running-each-module-separately)
 - [Database workflow](#database-workflow)
 - [File driver switching](#file-driver-switching)
+- [Internationalization](#internationalization)
+- [CI](#ci)
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
@@ -71,6 +73,8 @@ module: keep all required variables present, and only the behaviour changes per 
 | --- | --- | --- | --- |
 | `BACKEND_DOMAIN` | no | `http://localhost` | `files` — prefixed onto the stored path when `FILE_DRIVER=local`. Set it to `http://localhost:3000` so returned URLs are reachable |
 | `FRONTEND_DOMAIN` | no | `http://localhost` | `mail` — base of the magic-link URL |
+| `APP_FALLBACK_LANGUAGE` | no | `en` | `i18n` — language used when the request names none, or one without translations |
+| `APP_HEADER_LANGUAGE` | no | `x-custom-lang` | `i18n` — request header that selects the language |
 
 ### `database` — [src/database/config/database.config.ts](src/database/config/database.config.ts)
 
@@ -217,8 +221,10 @@ docker compose exec postgres psql -U "$DATABASE_USERNAME" -d "$DATABASE_NAME" \
 
 `MailerModule` is the transport layer: a Nodemailer transporter plus Handlebars template
 rendering. `MailModule` sits on top and owns the individual messages (`welcome`,
-`magicLink`). Templates live in [src/mail/mail-templates/](src/mail/mail-templates/) and are
-read from disk at send time, relative to `process.cwd()` — so always run from the repo root.
+`magicLink`, `otp`, `reminder`). Templates live in
+[src/mail/mail-templates/](src/mail/mail-templates/) and are read from disk at send time,
+relative to `process.cwd()` — so always run from the repo root. Templates hold layout only;
+their text comes from `src/i18n/<lang>/mail.json` (see [Internationalization](#internationalization)).
 
 | | |
 | --- | --- |
@@ -513,7 +519,7 @@ loads the reminder and its owner, and mails the message to the owner's address w
 | --- | --- |
 | Module dependencies | `RelationalReminderPersistenceModule`, `mail`, `users`, `ScheduleModule` (root) |
 | Infrastructure | `postgres`, `maildev` |
-| Migrations | `CreateUser`, `CreateReminder` |
+| Migrations | `CreateUser`, `CreateReminder`, `AddReminderLanguage` |
 | Required env | the `database`, `auth` and `mail` namespaces |
 
 All routes need a JWT, and users only see their own reminders.
@@ -535,6 +541,9 @@ All routes need a JWT, and users only see their own reminders.
   Every instance of the app schedules every reminder: run a single instance, or each extra
   instance sends its own copy of each email.
 - A tick whose reminder or user no longer exists removes its own job.
+- The request language is stored on the reminder (`language`), so the email is sent in that
+  language even though the cron tick has no request. An unsupported language is stored as
+  `null` and the email falls back to `APP_FALLBACK_LANGUAGE`.
 
 Try it:
 
@@ -549,6 +558,81 @@ curl -X POST http://localhost:3000/reminders \
 ```
 
 Within a minute a "Your reminder" mail shows up at <http://localhost:1080>.
+
+## Internationalization
+
+Built on [`nestjs-i18n`](https://nestjs-i18n.com), registered in
+[app.module.ts](src/app.module.ts). Translations live in [src/i18n/](src/i18n/), one folder per
+language (`en`, `hi`) and one JSON file per namespace. Like the mail templates, they are read
+relative to `process.cwd()`, so nothing needs copying into `dist`.
+
+The language of a request is picked in this order:
+
+1. the `x-custom-lang` header (`APP_HEADER_LANGUAGE`)
+2. `Accept-Language`, e.g. `hi-IN,hi;q=0.9` resolves to `hi`
+3. `APP_FALLBACK_LANGUAGE`
+
+A language without a folder in `src/i18n` falls back to `APP_FALLBACK_LANGUAGE`.
+
+What is translated:
+
+| What | Where | Namespace |
+| --- | --- | --- |
+| Email subject, plain-text body and template strings | [mail.service.ts](src/mail/mail.service.ts) | `mail.json` — one object per template; `subject` and `text` are required, every other key is passed to the `.hbs` template |
+| class-validator messages | [validation-options.ts](src/utils/validation-options.ts) | `validation.json` — one key per constraint name (`isEmail`, `maxLength`, …) |
+
+Error codes from services (`invalidHash`, `tooManyReminders`, …) stay untranslated: they are
+codes for the client to translate.
+
+Validation messages need no change in the DTOs: each failed constraint is looked up as
+`validation.<constraintName>`. Only a constraint whose message needs its arguments must carry
+them with `i18nValidationMessage`, as `maxLength` does in
+[create-reminder.dto.ts](src/reminders/dto/create-reminder.dto.ts) for `{constraints.0}`.
+When a DTO starts using a new constraint, add its key to every `validation.json`.
+
+```bash
+curl -X POST http://localhost:3000/auth/otp -H 'Content-Type: application/json' \
+  -H 'x-custom-lang: hi' -d '{"email":"nope"}'
+# {"status":422,"errors":{"email":"email एक मान्य ईमेल होना चाहिए"}}
+```
+
+To add a language, copy `src/i18n/en` to `src/i18n/<code>` and translate the values; keys and
+`{placeholders}` stay as they are.
+
+## CI
+
+GitHub Actions runs [.github/workflows/ci.yml](.github/workflows/ci.yml) on every push and pull
+request to `main`. The whole pipeline runs inside Docker Compose, so it behaves the same locally
+and on GitHub.
+
+| File | Role |
+| --- | --- |
+| [docker-compose.ci.yaml](docker-compose.ci.yaml) | a throwaway `postgres` (with a healthcheck) and the `api` container |
+| [ci.Dockerfile](ci.Dockerfile) | `npm ci`, copies `env-example-ci` to `.env`, `npm run build` |
+| [startup.ci.sh](startup.ci.sh) | the checks, run in order; the first failure stops the run |
+| [env-example-ci](env-example-ci) | dummy values for every validated variable; no GitHub secrets are needed |
+
+Checks, in order:
+
+1. `npm run lint`
+2. `npm run format:check` — Prettier, without writing
+3. `npm run migration:run` — every migration against an empty database
+4. `npm run migration:check` — fails if an entity changed but no migration was generated
+5. `npm run seed:run`
+6. Smoke test — starts `dist/main.js` and waits up to 30 seconds for port 3000; catches config
+   validation and dependency-injection errors that `tsc` cannot
+
+If the run fails, the app output is attached to the workflow run as the `prod-log` artifact.
+
+Run the same pipeline locally:
+
+```bash
+docker compose -f docker-compose.ci.yaml --env-file env-example-ci -p ci up --build --exit-code-from api
+docker compose -f docker-compose.ci.yaml --env-file env-example-ci -p ci down -v
+```
+
+When a new required environment variable is added, add it to `env-example-ci` as well, or the
+smoke test fails.
 
 ## Troubleshooting
 

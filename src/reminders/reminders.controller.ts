@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { I18nLang } from 'nestjs-i18n';
 import { User } from '../users/domain/user';
 import { CreateReminderDto } from './dto/create-reminder.dto';
 import { ReminderResponseDto } from './dto/reminder-response.dto';
@@ -27,8 +28,9 @@ export class RemindersController {
   create(
     @Request() request: { user: User },
     @Body() dto: CreateReminderDto,
+    @I18nLang() language: string,
   ): Promise<ReminderResponseDto> {
-    return this.remindersService.create(request.user, dto);
+    return this.remindersService.create(request.user, dto, language);
   }
 
   @Get()

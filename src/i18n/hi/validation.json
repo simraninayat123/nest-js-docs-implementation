@@ -1,0 +1,9 @@
+{
+  "isString": "{property} एक स्ट्रिंग होना चाहिए",
+  "isNotEmpty": "{property} खाली नहीं होना चाहिए",
+  "isEmail": "{property} एक मान्य ईमेल होना चाहिए",
+  "isNumber": "{property} एक संख्या होना चाहिए",
+  "maxLength": "{property} में अधिकतम {constraints.0} अक्षर हो सकते हैं",
+  "matches": "{property} का प्रारूप अमान्य है",
+  "whitelistValidation": "प्रॉपर्टी {property} मौजूद नहीं होनी चाहिए"
+}

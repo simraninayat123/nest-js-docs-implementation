@@ -31,6 +31,9 @@ export class ReminderEntity {
   @Column({ type: 'varchar', length: 100, nullable: true })
   timeZone!: string | null;
 
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  language!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 }
