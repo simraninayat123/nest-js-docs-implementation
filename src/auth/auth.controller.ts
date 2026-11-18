@@ -6,11 +6,10 @@ import {
   HttpStatus,
   Post,
   Request,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { User } from '../users/domain/user';
 import { AuthService } from './auth.service';
+import { Auth } from './decorators/auth.decorator';
 import { AuthMagicLinkConfirmDto } from './dto/auth-magic-link-confirm.dto';
 import { AuthMagicLinkDto } from './dto/auth-magic-link.dto';
 import { AuthOtpConfirmDto } from './dto/auth-otp-confirm.dto';
@@ -48,7 +47,7 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(AuthGuard('jwt'))
+  @Auth()
   @HttpCode(HttpStatus.OK)
   me(@Request() request: { user: User }): User {
     return request.user;

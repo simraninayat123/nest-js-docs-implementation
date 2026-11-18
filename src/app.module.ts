@@ -28,6 +28,7 @@ import { FilesModule } from './files/files.module';
 import mailConfig from './mail/config/mail.config';
 import { MailModule } from './mail/mail.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { RolesModule } from './roles/roles.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -74,6 +75,7 @@ import { UsersModule } from './users/users.module';
     BooksModule,
     MailModule,
     FilesModule,
+    RolesModule,
     UsersModule,
     AuthModule,
     AuthGoogleModule,

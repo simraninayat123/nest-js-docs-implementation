@@ -5,5 +5,9 @@
   "isNumber": "{property} एक संख्या होना चाहिए",
   "maxLength": "{property} में अधिकतम {constraints.0} अक्षर हो सकते हैं",
   "matches": "{property} का प्रारूप अमान्य है",
-  "whitelistValidation": "प्रॉपर्टी {property} मौजूद नहीं होनी चाहिए"
+  "whitelistValidation": "प्रॉपर्टी {property} मौजूद नहीं होनी चाहिए",
+  "isArray": "{property} एक ऐरे होना चाहिए",
+  "arrayUnique": "{property} में डुप्लिकेट मान नहीं होने चाहिए",
+  "isEnum": "{property} में एक अमान्य मान है",
+  "isUuid": "{property} एक UUID होना चाहिए"
 }

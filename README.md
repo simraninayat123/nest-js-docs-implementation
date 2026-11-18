@@ -54,7 +54,7 @@ Available scripts:
 | `npm run lint` / `npm run lint:fix` | ESLint over all `.ts` files |
 | `npm run format` | Prettier over all `.ts` files |
 | `npm run migration:run` / `migration:revert` / `migration:generate` / `migration:create` | TypeORM CLI wrappers |
-| `npm run seed:run` | seeds authors and books |
+| `npm run seed:run` | seeds authors, books and the `admin@example.com` admin user |
 
 ## Environment variables
 
@@ -287,22 +287,84 @@ docker compose exec localstack awslocal s3 ls "s3://$AWS_DEFAULT_S3_BUCKET"
 
 The user aggregate: domain model, entity, abstract repository and relational implementation.
 Supports soft deletion via `deletedAt`, and `findById` and `findByEmail` take a `withDeleted`
-option.
+option. Every user has exactly one role, loaded eagerly with the user (see [`roles`](#roles--srcroles-srcpermissions)).
 
 | | |
 | --- | --- |
-| Module dependencies | `RelationalUserPersistenceModule` |
+| Module dependencies | `RelationalUserPersistenceModule`, `roles` |
 | Infrastructure | `postgres` |
-| Migrations | `CreateUser` |
+| Migrations | `CreateUser`, `CreateRole` |
 | Required env | the `database` namespace |
 
-No controller — `UsersService` (`create`, `findById`, `findByEmail`) is exported and consumed
-by `auth`. Exercise it through the auth endpoints, then:
+`UsersService` (`create`, `findById`, `findByEmail`) is exported and consumed by `auth`. The
+only route is `PATCH /users/:id/role`, covered under `roles`. Inspect users and their roles:
 
 ```bash
 docker compose exec postgres psql -U "$DATABASE_USERNAME" -d "$DATABASE_NAME" \
-  -c 'select id, email, provider, "deletedAt" from "user";'
+  -c 'select u.id, u.email, u.provider, r.name as role from "user" u join role r on r.id = u."roleId";'
 ```
+
+### `roles` — [src/roles/](src/roles/), [src/permissions/](src/permissions/)
+
+Custom roles with permission-based access control. Permissions are a fixed enum in code
+([permission.enum.ts](src/permissions/permission.enum.ts)); roles are rows an admin creates,
+each holding a list of permissions in a `text[]` column. Routes declare what they need with
+`@Auth(...)` from [auth.decorator.ts](src/auth/decorators/auth.decorator.ts). `@Auth()` only
+requires a signed-in user; `@Auth(Permission.RemindersWrite, ...)` also requires the user's role
+to hold every listed permission.
+
+`@Auth` combines `RequirePermissions` (metadata via `Reflector.createDecorator`) with
+`AuthGuard('jwt')` followed by `PermissionsGuard`. The guard reads the permissions from the
+handler, falling back to the class, and answers `403` with
+`{"errors":{"permissions":"missingPermissions"}}` when one is missing. Permissions are never put
+in the JWT — the user and role are reloaded on every request, so role changes apply immediately.
+
+| | |
+| --- | --- |
+| Module dependencies | `RelationalRolePersistenceModule` |
+| Infrastructure | `postgres` |
+| Migrations | `CreateRole` |
+| Required env | the `database` and `auth` namespaces |
+
+Two system roles are inserted by the `CreateRole` migration with fixed IDs
+([system-role.enum.ts](src/roles/system-role.enum.ts)):
+
+| Role | Permissions |
+| --- | --- |
+| `Admin` | `reminders:read`, `reminders:write`, `roles:manage`, `users:manage` |
+| `User` | `reminders:read`, `reminders:write` — the column default, so every new user gets it |
+
+System roles are read-only through the API; change them with a migration. Adding a permission
+to the enum means a migration that adds it to whichever system roles should have it.
+
+| Endpoint | Permission | Body | Result |
+| --- | --- | --- | --- |
+| `POST /roles` | `roles:manage` | `{"name": "Reader", "description": "...", "permissions": ["reminders:read"]}` | `201`, the role |
+| `GET /roles` | `roles:manage` | — | all roles |
+| `GET /roles/:id` | `roles:manage` | — | one role, `404` if missing |
+| `PUT /roles/:id` | `roles:manage` | same as `POST` | the updated role |
+| `DELETE /roles/:id` | `roles:manage` | — | `204`; its users move to `User` in the same transaction |
+| `PATCH /users/:id/role` | `users:manage` | `{"roleId": "<uuid>"}` | the user with the new role |
+
+- Role names are unique (`422 nameAlreadyExists`).
+- Editing or deleting a system role returns `422 systemRoleReadOnly`.
+- Users cannot change their own role (`422 cannotChangeOwnRole`), so an admin cannot lock
+  themselves out. An unknown `roleId` returns `422 roleNotFound`.
+
+`npm run seed:run` creates `admin@example.com` with the `Admin` role. Sign in as that address
+through the [`auth`](#auth--srcauth) flow (the mail lands in maildev), then:
+
+```bash
+curl -X POST http://localhost:3000/roles \
+  -H 'Authorization: Bearer <admin-token>' -H 'Content-Type: application/json' \
+  -d '{"name":"Reader","permissions":["reminders:read"]}'
+
+curl -X PATCH http://localhost:3000/users/<user-id>/role \
+  -H 'Authorization: Bearer <admin-token>' -H 'Content-Type: application/json' \
+  -d '{"roleId":"<reader-role-id>"}'
+```
+
+That user can now list reminders but gets `403` on `POST /reminders`.
 
 ### `one-time-tokens` — [src/one-time-tokens/](src/one-time-tokens/)
 
@@ -384,7 +446,7 @@ unused tokens of the same type first, so only the newest link works.
 ```bash
 npm run migration:run      # apply pending migrations
 npm run migration:revert   # roll back the most recent one
-npm run seed:run           # seed authors and books
+npm run seed:run           # seed authors, books and the admin user
 ```
 
 To create a migration from entity changes:
@@ -522,7 +584,8 @@ loads the reminder and its owner, and mails the message to the owner's address w
 | Migrations | `CreateUser`, `CreateReminder`, `AddReminderLanguage` |
 | Required env | the `database`, `auth` and `mail` namespaces |
 
-All routes need a JWT, and users only see their own reminders.
+All routes need a JWT plus `reminders:read` (the `GET`s) or `reminders:write` (`POST` and
+`DELETE`), and users only see their own reminders.
 
 | Endpoint | Body | Result |
 | --- | --- | --- |

@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Role } from '../../../../../roles/domain/role';
 import { NullableType } from '../../../../../utils/types/nullable.type';
-import { User } from '../../../../domain/user';
+import { NewUser, User } from '../../../../domain/user';
 import { UserRepository } from '../../user.repository';
 import { UserEntity } from '../entities/user.entity';
 import { UserMapper } from '../mappers/user.mapper';
@@ -14,12 +15,13 @@ export class UserRelationalRepository implements UserRepository {
     private readonly userRepository: Repository<UserEntity>,
   ) {}
 
-  async create(data: User): Promise<User> {
-    const persistenceModel = UserMapper.toPersistence(data);
-    const newEntity = await this.userRepository.save(
-      this.userRepository.create(persistenceModel),
+  async create(data: NewUser): Promise<User> {
+    const { id } = await this.userRepository.save(
+      this.userRepository.create(UserMapper.toPersistence(data)),
     );
-    return UserMapper.toDomain(newEntity);
+    return UserMapper.toDomain(
+      await this.userRepository.findOneOrFail({ where: { id } }),
+    );
   }
 
   async findById(
@@ -42,5 +44,13 @@ export class UserRelationalRepository implements UserRepository {
       withDeleted: options?.withDeleted ?? false,
     });
     return entity ? UserMapper.toDomain(entity) : null;
+  }
+
+  async updateRole(
+    id: User['id'],
+    roleId: Role['id'],
+  ): Promise<NullableType<User>> {
+    await this.userRepository.update({ id }, { roleId });
+    return this.findById(id);
   }
 }

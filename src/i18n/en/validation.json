@@ -5,5 +5,9 @@
   "isNumber": "{property} must be a number",
   "maxLength": "{property} must be at most {constraints.0} characters long",
   "matches": "{property} has an invalid format",
-  "whitelistValidation": "property {property} should not exist"
+  "whitelistValidation": "property {property} should not exist",
+  "isArray": "{property} must be an array",
+  "arrayUnique": "{property} must not contain duplicate values",
+  "isEnum": "{property} contains an invalid value",
+  "isUuid": "{property} must be a UUID"
 }
